@@ -3,6 +3,10 @@ import requests
 from base64 import b64decode
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+import os
+# from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+# from cryptography.hazmat.backends import default_backend
+from base64 import b64encode
 
 app = Flask(__name__)
 port = 3030
@@ -25,6 +29,28 @@ def decrypt_content(T):
     except Exception as e:
         print(f"Decryption error: {e}")
         raise e
+def encrypt_content(plaintext: str) -> str:
+    try:
+        # Prepare the key and IV
+        key = b"vPl@yS3cureV1de0EnceyptionK3y201"
+        iv = os.urandom(16)  # Generate a random IV
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        
+        # Pad plaintext to be multiple of block size (16 bytes for AES)
+        pad_len = 16 - (len(plaintext) % 16)
+        padded_plaintext = plaintext + chr(pad_len) * pad_len
+
+        # Encrypt the content
+        encrypted_data = encryptor.update(padded_plaintext.encode('utf-8')) + encryptor.finalize()
+
+        # Concatenate IV and encrypted data, then encode in base64
+        encrypted_message = iv + encrypted_data
+        return b64encode(encrypted_message).decode('utf-8')
+    
+    except Exception as e:
+        print(f"Encryption error: {e}")
+        raise e
 
 # Simple GET route
 @app.route('/<id>/file.m3u8')
@@ -46,8 +72,9 @@ def handle_m3u8(id):
             if line.strip().startswith('http'):
                 line = f"{origin}/proxy/{requests.utils.quote(line).replace('.m3u8', '.ts')}"
             processed_lines.append(line)
-
-        return "\n".join(processed_lines)
+            content = '\n'.join(processed_lines)
+        return content
+        return encrypt_content(content)
     except Exception as e:
         return Response('Decryption or fetching failed.', status=500)
 
@@ -70,4 +97,13 @@ def handle_proxy(proxy):
 
 # Start the server
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port,debug=True)
+
+#     x = encrypt_content(""" #EXTM3U
+# #EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080
+# 1080/1080p.txt
+# #EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720
+# 720/720p.txt
+# #EXT-X-STREAM-INF:BANDWIDTH=840000,RESOLUTION=640x360
+# 360/360p.txt""")
+#     print(decrypt_content(x))
